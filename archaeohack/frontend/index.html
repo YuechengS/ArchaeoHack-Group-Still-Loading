@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Egyptian Hieroglyphs Learning App</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏺 Egyptian Hieroglyphs Learning App</h1>
+            <p class="subtitle">Learn ancient Egyptian writing through interactive drawing</p>
+        </header>
+
+        <div class="mode-selector">
+            <button class="mode-btn active" id="identifyModeBtn">
+                📝 Identify Sign Mode
+            </button>
+            <button class="mode-btn" id="practiceModeBtn">
+                🎯 Practice Mode
+            </button>
+        </div>
+
+        <div class="main-content">
+            <div class="drawing-section">
+                <h2 class="section-title">Drawing Canvas</h2>
+                
+                <!-- Practice Mode Prompt (hidden by default) -->
+                <div id="promptArea" class="prompt-area hidden">
+                    <div class="prompt-label">Draw the hieroglyph for:</div>
+                    <div class="prompt-text" id="promptText">Loading...</div>
+                </div>
+
+                <canvas id="drawingCanvas" width="400" height="400"></canvas>
+                
+                <div class="stroke-width-control">
+                    <label for="strokeWidth">Brush Size:</label>
+                    <input type="range" id="strokeWidth" min="2" max="20" value="5">
+                    <span id="strokeWidthValue">5px</span>
+                </div>
+
+                <div class="canvas-controls">
+                    <button class="btn btn-clear" id="clearBtn">🗑️ Clear Canvas</button>
+                    <button class="btn btn-submit" id="submitBtn">✓ Submit Drawing</button>
+                </div>
+            </div>
+
+            <div class="results-section">
+                <h2 class="section-title">Results</h2>
+                <div id="resultsContent" class="results-content">
+                    <p style="text-align: center; color: #999; padding: 40px;">
+                        Draw a hieroglyph and click Submit to see results
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
