@@ -1,6 +1,9 @@
 let hieroglyphDatabase = [];
 let dataLoaded = false;
 
+// Flask backend URL - change this if your server runs on a different port
+const API_URL = 'http://localhost:5000';
+
 // Load hieroglyph data from JSON file
 async function loadHieroglyphData() {
     try {
@@ -92,14 +95,6 @@ canvas.addEventListener('touchend', stopDrawing);
 // UI CONTROLS
 // ============================================
 
-// Stroke width control
-
-/*Stroke width control removed as of now
-document.getElementById('strokeWidth').addEventListener('input', (e) => {
-    strokeWidth = e.target.value;
-    document.getElementById('strokeWidthValue').textContent = strokeWidth + 'px';
-});*/
-
 // Clear canvas button
 document.getElementById('clearBtn').addEventListener('click', () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -156,29 +151,24 @@ function generateNewPrompt() {
         return;
     }
     
-    // Randomly select a hieroglyph from the database
-    const randomIndex = Math.floor(Math.random() * hieroglyphDatabase.length);
-    currentPrompt = hieroglyphDatabase[randomIndex];
+    // Filter to only priority hieroglyphs that match what the model was trained on
+    const priorityHieroglyphs = hieroglyphDatabase.filter(h => h.is_priority === true);
+    
+    if (priorityHieroglyphs.length === 0) {
+        console.error('No priority hieroglyphs found in database');
+        document.getElementById('promptText').textContent = 'Error: No training hieroglyphs available';
+        return;
+    }
+    
+    // Randomly select a hieroglyph from priority ones
+    const randomIndex = Math.floor(Math.random() * priorityHieroglyphs.length);
+    currentPrompt = priorityHieroglyphs[randomIndex];
     
     // Display the prompt using description as the main prompt
     document.getElementById('promptText').textContent = 
         `"${currentPrompt.description}"`;
     
     console.log(`Generated prompt: ${currentPrompt.description} (${currentPrompt.gardiner_num})`);
-}
-// Find a hieroglyph by its Gardiner code (useful when ML model returns "A1", "N35", etc.)
-function findHieroglyphByCode(code) {
-    return hieroglyphDatabase.find(h => h.gardiner_num === code) || null;
-}
-
-// Get the image path for a hieroglyph
-function getHieroglyphImagePath(code) {
-    return `images/hieroglyphs/${code}.png`;
-}
-
-// Format Unicode hex to standard format
-function formatUnicodePoint(hex) {
-    return `U+${hex.toUpperCase()}`;
 }
 
 // ============================================
@@ -198,21 +188,47 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
     // Show loading state
     showLoading();
     
-    // Simulate ML model processing with timeout
-    // When you add your real ML model, replace this setTimeout with your actual API call
-    setTimeout(() => {
-        try {
-            if (currentMode === 'identify') {
-                displayIdentifyResults(getMockResults());
-            } else {
-                displayPracticeResults(getMockPracticeResults());
-            }
-        } catch (error) {
-            console.error('Error displaying results:', error);
-            document.getElementById('resultsContent').innerHTML = 
-                '<p style="color: red; text-align: center;">Error generating results. Check console for details.</p>';
+    try {
+        // Call the Flask backend
+        const response = await fetch(`${API_URL}/classify`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ image: imageData })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
-    }, 1000);
+        
+        const result = await response.json();
+        
+        // Display results based on mode
+        if (currentMode === 'identify') {
+            displayIdentifyResults(result);
+        } else {
+            // For practice mode, check if the drawn sign matches the prompt
+            const isCorrect = result.gardiner_num === currentPrompt.gardiner_num;
+            
+            const practiceResult = {
+                correct: isCorrect,
+                drawnSign: result.sign,
+                correctAnswer: {
+                    sign: currentPrompt.description,
+                    glyph: currentPrompt.hieroglyph
+                }
+            };
+            displayPracticeResults(practiceResult);
+        }
+    } catch (error) {
+        console.error('Error classifying drawing:', error);
+        
+        // Fallback to mock results if backend is not available
+        console.log('Falling back to mock results...');
+        document.getElementById('resultsContent').innerHTML = 
+            '<p style="color: red; text-align: center;">Error: Backend server not available. Make sure Flask server is running on port 5000.<br><br>Run: python backend/app.py</p>';
+    }
 });
 
 function showLoading() {
@@ -264,6 +280,17 @@ function displayIdentifyResults(results) {
             <div class="result-item">
                 <div class="result-label">Additional Information</div>
                 <div class="result-value">${results.additionalInfo}</div>
+            </div>
+        ` : ''}
+        
+        ${results.top_predictions ? `
+            <div class="result-item">
+                <div class="result-label">Top 3 Predictions</div>
+                <div class="result-value">
+                    ${results.top_predictions.map((p, i) => 
+                        `${i+1}. ${p.gardiner_num} (${p.confidence}%)`
+                    ).join('<br>')}
+                </div>
             </div>
         ` : ''}
     `;
@@ -324,142 +351,3 @@ function nextPractice() {
     document.getElementById('resultsContent').innerHTML = 
         '<p style="text-align: center; color: #999; padding: 40px;">Draw the hieroglyph and click Submit</p>';
 }
-
-// ============================================
-// MOCK FUNCTIONS - REPLACE WITH ML MODEL
-// ============================================
-
-function getMockResults() {
-    // Safety check
-    if (!dataLoaded || hieroglyphDatabase.length === 0) {
-        throw new Error('Hieroglyph database not loaded');
-    }
-    
-    // Pick a random hieroglyph from database
-    const hieroglyph = hieroglyphDatabase[Math.floor(Math.random() * hieroglyphDatabase.length)];
-    
-    return {
-        sign: `${hieroglyph.hieroglyph} (${hieroglyph.description})`,
-        phonetic: hieroglyph.details || "See details",
-        meaning: hieroglyph.description,
-        unicode: formatUnicodePoint(hieroglyph.unicode_hex),
-        glyph: hieroglyph.hieroglyph,
-        confidence: Math.floor(Math.random() * 20) + 80, // Random 80-100%
-        additionalInfo: hieroglyph.details
-    };
-}
-
-function getMockPracticeResults() {
-    // Safety check
-    if (!dataLoaded || hieroglyphDatabase.length === 0) {
-        throw new Error('Hieroglyph database not loaded');
-    }
-    
-    // For demo: randomly determine if answer is correct
-    const isCorrect = Math.random() > 0.5;
-    
-    let drawnHieroglyph = currentPrompt;
-    if (!isCorrect) {
-        // Pick a different random hieroglyph
-        do {
-            drawnHieroglyph = hieroglyphDatabase[Math.floor(Math.random() * hieroglyphDatabase.length)];
-        } while (drawnHieroglyph.gardiner_num === currentPrompt.gardiner_num);
-    }
-    
-    return {
-        correct: isCorrect,
-        drawnSign: drawnHieroglyph.description,
-        correctAnswer: {
-            sign: currentPrompt.description,
-            glyph: currentPrompt.hieroglyph
-        }
-    };
-}
-
-// ============================================
-// ML MODEL INTEGRATION SECTION
-// ============================================
-
-/**
- * REPLACE THIS SECTION WITH YOUR ACTUAL ML MODEL INTEGRATION
- * 
- * Option 1: REST API Integration (Flask/FastAPI backend)
- * --------------------------------------------------------
- * async function classifyDrawing(imageData) {
- *     try {
- *         const response = await fetch('http://localhost:5000/classify', {
- *             method: 'POST',
- *             headers: {
- *                 'Content-Type': 'application/json',
- *             },
- *             body: JSON.stringify({ image: imageData })
- *         });
- *         
- *         if (!response.ok) {
- *             throw new Error('Classification failed');
- *         }
- *         
- *         const result = await response.json();
- *         return result;
- *     } catch (error) {
- *         console.error('Error classifying drawing:', error);
- *         return null;
- *     }
- * }
- * 
- * Then update the submit button handler:
- * document.getElementById('submitBtn').addEventListener('click', async () => {
- *     const imageData = canvas.toDataURL('image/png');
- *     showLoading();
- *     
- *     const mlResult = await classifyDrawing(imageData);
- *     
- *     if (mlResult) {
- *         if (currentMode === 'identify') {
- *             displayIdentifyResults(mlResult);
- *         } else {
- *             const practiceResult = {
- *                 correct: mlResult.sign === currentPrompt.meaning,
- *                 drawnSign: mlResult.sign,
- *                 correctAnswer: {
- *                     sign: currentPrompt.meaning,
- *                     glyph: mlResult.glyph
- *                 }
- *             };
- *             displayPracticeResults(practiceResult);
- *         }
- *     } else {
- *         document.getElementById('resultsContent').innerHTML = 
- *             '<p style="color: red; text-align: center;">Error: Could not classify drawing</p>';
- *     }
- * });
- * 
- * 
- * Option 2: TensorFlow.js Integration (browser-based model)
- * ----------------------------------------------------------
- * let model;
- * 
- * // Load model on page load
- * async function loadModel() {
- *     model = await tf.loadLayersModel('path/to/model.json');
- *     console.log('Model loaded successfully');
- * }
- * 
- * // Preprocess canvas for model
- * function preprocessCanvas(canvas) {
- *     // Convert canvas to tensor and preprocess
- *     let tensor = tf.browser.fromPixels(canvas);
- *     // Add any necessary preprocessing (resize, normalize, etc.)
- *     return tensor;
- * }
- * 
- * async function classifyDrawing() {
- *     const tensor = preprocessCanvas(canvas);
- *     const prediction = model.predict(tensor);
- *     // Process prediction and return results
- *     return processedResult;
- * }
- * 
- * // Call loadModel when page loads
- * window.addEventListener('load', loadModel);
- */
