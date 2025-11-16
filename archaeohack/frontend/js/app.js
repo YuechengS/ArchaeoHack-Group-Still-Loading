@@ -230,10 +230,14 @@ function showLoading() {
 
 // Display results for Identify mode (Function 1)
 function displayIdentifyResults(results) {
-    const html = `
+    const html = ` 
         <div class="result-item">
             <div class="result-label">Identified Sign</div>
             <div class="result-value">${results.sign}</div>
+        </div>
+
+        <div class="unicode-glyph">
+           <div class= "result-value"> ${results.glyph}</div>
         </div>
         
         <div class="result-item">
@@ -249,10 +253,6 @@ function displayIdentifyResults(results) {
         <div class="result-item">
             <div class="result-label">Unicode Code Point</div>
             <div class="result-value">${results.unicode}</div>
-        </div>
-        
-        <div class="unicode-glyph">
-            ${results.glyph}
         </div>
         
         <div class="result-item">
